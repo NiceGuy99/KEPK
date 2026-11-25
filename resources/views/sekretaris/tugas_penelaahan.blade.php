@@ -1,4 +1,4 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('title', 'Daftar Tugas Penelaahan')
 
@@ -46,7 +46,7 @@
                             </td>
                             <td>
                                 <div class="fw-medium text-dark">
-                                    <i class="bi bi-person-badge me-1"></i> {{ $t->penelaah?->profil?->nama_lengkap ?? $tugas->penelaah?->email ?? '-' }}
+                                    <i class="bi bi-person-badge me-1"></i> {{ $t->penelaah?->profil?->nama_lengkap ?? $t->penelaah?->email ?? '-' }}
                                 </div>
                             </td>
                             <td>{{ $t->tanggal_penugasan ? date('d M Y', strtotime($t->tanggal_penugasan)) : '-' }}</td>

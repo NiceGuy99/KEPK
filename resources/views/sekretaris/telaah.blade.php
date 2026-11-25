@@ -1,4 +1,4 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('title', 'Telaah Protokol')
 
@@ -18,13 +18,17 @@
     
     // Read-only aktif jika proposal selesai ATAU sedang dalam mode view
     $readOnly = ($isLocked || $isViewMode);
+
+    $isKetua = (auth()->check() && (auth()->user()->role_id == 2 || auth()->user()->role?->nama_role == 'ketua'));
+    $backRiwayat = $isKetua ? route('ketua.riwayat') : route('sekretaris.riwayat');
+    $backTugas = $isKetua ? route('ketua.tugas') : route('sekretaris.tugas');
 @endphp
 
 <div class="mb-4">
     @if($isViewMode)
-        <a href="{{ route('sekretaris.riwayat') }}" class="text-decoration-none text-muted mb-2 d-inline-block"><i class="bi bi-arrow-left me-1"></i> Kembali ke Riwayat Telaah</a>
+        <a href="{{ $backRiwayat }}" class="text-decoration-none text-muted mb-2 d-inline-block"><i class="bi bi-arrow-left me-1"></i> Kembali ke Riwayat Telaah</a>
     @else
-        <a href="{{ route('sekretaris.tugas') }}" class="text-decoration-none text-muted mb-2 d-inline-block"><i class="bi bi-arrow-left me-1"></i> Kembali ke Daftar Tugas</a>
+        <a href="{{ $backTugas }}" class="text-decoration-none text-muted mb-2 d-inline-block"><i class="bi bi-arrow-left me-1"></i> Kembali ke Daftar Tugas</a>
     @endif
     
     <h3 class="fw-bold text-dark mb-1">
@@ -89,7 +93,9 @@
 
             {{-- PENGONDISIAN TOMBOL DAFTAR TILIK --}}
             @php
-                $routeTilik = $readOnly ? route('sekretaris.detail-7standar', $tugas->id) : route('sekretaris.form7standar', $tugas->id);
+                $routeTilik = $readOnly 
+                    ? ($isKetua ? route('ketua.detail-7standar', $tugas->id) : route('sekretaris.detail-7standar', $tugas->id)) 
+                    : route('sekretaris.form7standar', $tugas->id);
             @endphp
 
             <a href="{{ $routeTilik }}" class="btn btn-outline-info w-100 py-2 btn-modern">

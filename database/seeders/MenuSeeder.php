@@ -135,6 +135,30 @@ class MenuSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            [
+                'id' => 17,
+                'nama_menu' => 'WhatsApp Gateway',
+                'route_name' => 'sekretaris.wa-gateway',
+                'route_pattern' => 'sekretaris.wa-gateway*',
+                'icon' => 'bi bi-whatsapp',
+                'urutan' => 11,
+                'kategori' => 'Admin',
+                'is_active' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => 18,
+                'nama_menu' => 'Pengaturan Sertifikat',
+                'route_name' => 'sekretaris.pengaturan-sertifikat',
+                'route_pattern' => 'sekretaris.pengaturan-sertifikat*',
+                'icon' => 'bi bi-sliders',
+                'urutan' => 12,
+                'kategori' => 'Admin',
+                'is_active' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
 
             // KATEGORI: PENELAAH
             [
@@ -232,6 +256,8 @@ class MenuSeeder extends Seeder
             ['role_id' => 1, 'menu_id' => 8],
             ['role_id' => 1, 'menu_id' => 9],
             ['role_id' => 1, 'menu_id' => 10],
+            ['role_id' => 1, 'menu_id' => 17],
+            ['role_id' => 1, 'menu_id' => 18],
 
             // Ketua
             ['role_id' => 2, 'menu_id' => 1],
@@ -242,6 +268,7 @@ class MenuSeeder extends Seeder
             ['role_id' => 2, 'menu_id' => 7],
             ['role_id' => 2, 'menu_id' => 8],
             ['role_id' => 2, 'menu_id' => 9],
+            ['role_id' => 2, 'menu_id' => 18],
 
             // Penelaah
             ['role_id' => 3, 'menu_id' => 11],

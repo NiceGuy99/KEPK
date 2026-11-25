@@ -93,49 +93,6 @@
                                 @endif
                             </td>
                         </tr>
-
-                        <!-- MODAL INPUT / EDIT TANGGAL SERTIFIKAT -->
-                        <div class="modal fade" id="modalSertifikat{{ $p->id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form action="{{ route('sekretaris.sertifikat.simpan', $p->id) }}" method="POST">
-                                        @csrf
-                                        <div class="modal-header">
-                                            <h5 class="modal-title fw-bold">
-                                                {{ $p->sertifikat ? 'Edit / Perbarui Sertifikat' : 'Buat Sertifikat Baru' }}
-                                            </h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div class="modal-body text-start">
-                                            <div class="mb-3">
-                                                <label class="form-label small fw-medium">Judul Penelitian</label>
-                                                <input type="text" class="form-control form-control-modern bg-light" value="{{ $p->judul_penelitian }}" disabled>
-                                            </div>
-
-                                            <div class="mb-3">
-                                                <label class="form-label small fw-medium">Nomor Sertifikat</label>
-                                                <input type="text" class="form-control form-control-modern bg-light" value="{{ $p->sertifikat->nomor_sertifikat ?? 'Otomatis digenerate oleh sistem' }}" disabled>
-                                                <small class="text-muted">Format: [No Urut 5 digit]/KEPKRSUDSIBAR/[Bulan]/[Tahun]</small>
-                                            </div>
-
-                                            <div class="mb-3">
-                                                <label class="form-label small fw-medium">Tanggal Terbit *</label>
-                                                <input type="date" name="tanggal_terbit" class="form-control form-control-modern" value="{{ $p->sertifikat->tanggal_terbit ?? date('Y-m-d') }}" required>
-                                                <small class="text-muted">Bulan dan tahun pada nomor sertifikat akan mengikuti tanggal ini.</small>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
-                                            <button type="submit" class="btn btn-primary btn-sm" style="background: #0d9488; border: none;">
-                                                <i class="bi bi-save me-1"></i> Simpan & Cetak
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- END MODAL -->
-
                     @empty
                         <tr>
                             <td colspan="6" class="text-center py-4 text-muted">Belum ada proposal yang berstatus selesai.</td>
@@ -150,5 +107,49 @@
             {{ $proposalsSelesai->links() }}
         </div>
     @endif
+</div>
+
+<!-- MODAL INPUT / EDIT TANGGAL SERTIFIKAT (Outside table container) -->
+@foreach($proposalsSelesai as $p)
+    <div class="modal fade" id="modalSertifikat{{ $p->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="{{ route('sekretaris.sertifikat.simpan', $p->id) }}" method="POST">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">
+                            {{ $p->sertifikat ? 'Edit / Perbarui Sertifikat' : 'Buat Sertifikat Baru' }}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-start">
+                        <div class="mb-3">
+                            <label class="form-label small fw-medium">Judul Penelitian</label>
+                            <input type="text" class="form-control form-control-modern bg-light" value="{{ $p->judul_penelitian }}" disabled>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-medium">Nomor Sertifikat</label>
+                            <input type="text" class="form-control form-control-modern bg-light" value="{{ $p->sertifikat->nomor_sertifikat ?? 'Otomatis digenerate oleh sistem' }}" disabled>
+                            <small class="text-muted">Format: [No Urut 5 digit]/KEPKRSUDSIBAR/[Bulan]/[Tahun]</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-medium">Tanggal Terbit *</label>
+                            <input type="date" name="tanggal_terbit" class="form-control form-control-modern" value="{{ $p->sertifikat->tanggal_terbit ?? date('Y-m-d') }}" required>
+                            <small class="text-muted">Bulan dan tahun pada nomor sertifikat akan mengikuti tanggal ini.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary btn-sm" style="background: #0d9488; border: none;">
+                            <i class="bi bi-save me-1"></i> Simpan & Cetak
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+@endforeach
 </div>
 @endsection

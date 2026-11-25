@@ -139,7 +139,44 @@
             font-size: 13pt; /* Naik dari 12pt */
         }
         .signature-space {
-            height: 70px;
+            min-height: 115px;
+            margin: 8px 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .qr-ttd-box {
+            width: 110px;
+            height: 110px;
+            flex-shrink: 0;
+            display: inline-block;
+            background: #ffffff !important;
+            padding: 4px;
+            border-radius: 4px;
+            border: none !important;
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        .qr-ttd-box img,
+        .qr-ttd-box svg {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+            image-rendering: pixelated;
+        }
+        .qr-ttd-info {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8.5pt;
+            color: #1e293b;
+            line-height: 1.35;
+        }
+        .qr-ttd-info .title {
+            font-weight: bold;
+            color: #1e3a8a;
+            font-size: 9pt;
+            display: block;
+            margin-bottom: 3px;
         }
         .footer-note {
             position: absolute;
@@ -174,12 +211,15 @@
     </div>
 
     <div class="certificate-box">
+        @php
+            $pengaturan = $pengaturan ?? \App\Models\PengaturanSertifikat::getActive();
+        @endphp
         <!-- Header Center -->
         <div class="header-center">
             <img src="{{ asset('image/sibar.png') }}" class="logo" alt="Logo">
-            <div class="institution-title">Komite Etik Penelitian Kesehatan</div>
-            <div class="institution-subtitle">Health Research Ethics Committee</div>
-            <div class="institution-name">Rumah Sakit Umum Daerah Sidoarjo Barat</div>
+            <div class="institution-title">{{ $pengaturan->nama_lembaga ?? 'Komite Etik Penelitian Kesehatan' }}</div>
+            <div class="institution-subtitle">{{ $pengaturan->nama_lembaga_en ?? 'Health Research Ethics Committee' }}</div>
+            <div class="institution-name">{{ $pengaturan->nama_instansi ?? 'Rumah Sakit Umum Daerah Sidoarjo Barat' }}</div>
         </div>
         <hr style="border: 1px solid #1e3a8a; margin-top: 10px; margin-bottom: 15px;">
 
@@ -193,10 +233,10 @@
         <div class="approval-number">NO : {{ $proposal->sertifikat->nomor_sertifikat ?? '-' }}</div>
 
         <div class="body-text">
-            Komite Etik Penelitian Kesehatan Rumah Sakit Umum Daerah Sidoarjo Barat dalam upaya melindungi hak asasi dan kesejahteraan subjek penelitian kesehatan, telah mengkaji dengan teliti protokol berjudul:
+            {{ $pengaturan->nama_lembaga ?? 'Komite Etik Penelitian Kesehatan' }} {{ $pengaturan->nama_instansi ?? 'Rumah Sakit Umum Daerah Sidoarjo Barat' }} dalam upaya melindungi hak asasi dan kesejahteraan subjek penelitian kesehatan, telah mengkaji dengan teliti protokol berjudul:
         </div>
         <div class="body-text" style="font-style: italic;">
-            The Committee of Ethical Approval in the Rumah Sakit Umum Daerah Sidoarjo Barat, with regards to the protection of Human Rights and welfare in health research, carefully reviewed the research protocol entitled:
+            The Committee of Ethical Approval in the {{ $pengaturan->nama_instansi ?? 'Rumah Sakit Umum Daerah Sidoarjo Barat' }}, with regards to the protection of Human Rights and welfare in health research, carefully reviewed the research protocol entitled:
         </div>
 
         <!-- Judul Proposal -->
@@ -235,8 +275,64 @@
         @php
             $tgl = $proposal->sertifikat->tanggal_terbit ?? date('Y-m-d');
             $bulanArr = ['01'=>'Januari', '02'=>'Februari', '03'=>'Maret', '04'=>'April', '05'=>'Mei', '06'=>'Juni', '07'=>'Juli', '08'=>'Agustus', '09'=>'September', '10'=>'Oktober', '11'=>'November', '12'=>'Desember'];
-            $tanggal_pengesahan = "Sidoarjo, " . date('d', strtotime($tgl)) . " " . ($bulanArr[date('m', strtotime($tgl))] ?? '') . " " . date('Y', strtotime($tgl));
+            $tglFormatted = date('d', strtotime($tgl)) . " " . ($bulanArr[date('m', strtotime($tgl))] ?? '') . " " . date('Y', strtotime($tgl));
+            $kotaPenerbitan = $pengaturan->kota_penerbitan ?? 'Sidoarjo';
+            $tanggal_pengesahan = "{$kotaPenerbitan}, {$tglFormatted}";
             $namaPersetujuan = $proposal->jenisPersetujuan?->nama_persetujuan ?? 'Approved';
+
+            if (!isset($qrCodeSvg) || empty($qrCodeSvg)) {
+                try {
+                    $noSertifikat = $proposal->sertifikat->nomor_sertifikat ?? '-';
+                    $judulProposal = $proposal->judul_penelitian ?? '-';
+                    $namaPeneliti = $proposal->peneliti?->nama_lengkap ?? '-';
+
+                    $penandatanganLines = [];
+                    if (!empty($pengaturan->nama_penandatangan)) {
+                        $penandatanganLines[] = "ditandatangani oleh " . $pengaturan->nama_penandatangan;
+                    }
+                    if (!empty($pengaturan->pangkat_golongan)) {
+                        $penandatanganLines[] = $pengaturan->pangkat_golongan;
+                    }
+                    if (!empty($pengaturan->nip_penandatangan)) {
+                        $penandatanganLines[] = "NIP " . $pengaturan->nip_penandatangan;
+                    }
+
+                    $qrPayload = "No. Sertifikat: {$noSertifikat}\n"
+                               . "Judul Proposal: {$judulProposal}\n"
+                               . "Nama Peneliti: {$namaPeneliti}\n"
+                               . implode("\n", $penandatanganLines);
+
+                    if (extension_loaded('gd')) {
+                        $options = new \chillerlan\QRCode\QROptions([
+                            'outputInterface'     => \chillerlan\QRCode\Output\QRGdImagePNG::class,
+                            'outputBase64'        => true,
+                            'scale'               => 8,
+                            'eccLevel'            => \chillerlan\QRCode\Common\EccLevel::L,
+                            'addQuietzone'        => true,
+                            'quietzoneSize'       => 4,
+                            'bgColor'             => [255, 255, 255],
+                            'imageTransparent'    => false,
+                        ]);
+                        $qrCodeSvg = (new \chillerlan\QRCode\QRCode($options))->render($qrPayload);
+                    } else {
+                        $options = new \chillerlan\QRCode\QROptions([
+                            'outputInterface'     => \chillerlan\QRCode\Output\QRMarkupSVG::class,
+                            'outputBase64'        => false,
+                            'svgAddXmlHeader'     => false,
+                            'eccLevel'            => \chillerlan\QRCode\Common\EccLevel::L,
+                            'addQuietzone'        => true,
+                            'quietzoneSize'       => 4,
+                            'drawLightModules'    => false,
+                            'connectPaths'        => true,
+                        ]);
+                        $rawSvg = (new \chillerlan\QRCode\QRCode($options))->render($qrPayload);
+                        $qrCodeSvg = preg_replace('/(<svg[^>]*>)/i', '$1<rect width="100%" height="100%" fill="#ffffff"/>', $rawSvg);
+                        $qrCodeSvg = str_replace('<svg ', '<svg shape-rendering="crispEdges" ', $qrCodeSvg);
+                    }
+                } catch (\Throwable $e) {
+                    $qrCodeSvg = null;
+                }
+            }
         @endphp
 
         <!-- Penutup & Jenis Persetujuan -->
@@ -248,17 +344,37 @@
         <!-- Bagian Tanda Tangan -->
         <div class="signature-section">
             <div>{{ $tanggal_pengesahan }}</div>
-            <div>Ketua KEPK RSUD Sidoarjo Barat</div>
-            <div class="signature-space"></div>
-            <div><strong>Dr. dr. Arif Rahman Nurdianto, M.Imun., S.H., M.H.</strong></div>
-            <div>Pembina Tingkat I / IVb</div>
-            <div>NIP 198704162011011007</div>
+            <div>{{ $pengaturan->jabatan_penandatangan ?? 'Ketua KEPK RSUD Sidoarjo Barat' }}</div>
+            <div class="signature-space">
+                @if(!empty($qrCodeSvg))
+                    <div class="qr-ttd-box">
+                        @if(str_starts_with($qrCodeSvg, 'data:image'))
+                            <img src="{{ $qrCodeSvg }}" alt="QR TTD">
+                        @else
+                            {!! $qrCodeSvg !!}
+                        @endif
+                    </div>
+                    <div class="qr-ttd-info">
+                        <span class="title">Ditandatangani Elektronik</span>
+                        <span>Scan untuk verifikasi keaslian dokumen</span>
+                    </div>
+                @else
+                    <div style="height: 70px;"></div>
+                @endif
+            </div>
+            <div><strong>{{ $pengaturan->nama_penandatangan ?? 'Dr. dr. Arif Rahman Nurdianto, M.Imun., S.H., M.H.' }}</strong></div>
+            @if(!empty($pengaturan->pangkat_golongan))
+                <div>{{ $pengaturan->pangkat_golongan }}</div>
+            @endif
+            @if(!empty($pengaturan->nip_penandatangan))
+                <div>NIP {{ $pengaturan->nip_penandatangan }}</div>
+            @endif
         </div>
 
         <!-- Catatan Kaki Masa Berlaku -->
         <div class="footer-note">
-            *Masa berlaku 1 tahun<br>
-            <i>1 year validity period</i>
+            {{ $pengaturan->masa_berlaku_teks ?? '*Masa berlaku 1 tahun' }}<br>
+            <i>{{ $pengaturan->masa_berlaku_teks_en ?? '1 year validity period' }}</i>
         </div>
     </div>
 

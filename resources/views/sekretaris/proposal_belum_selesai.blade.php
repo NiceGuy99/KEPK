@@ -17,7 +17,7 @@
 @endif
 
 <div class="card card-modern p-3 mb-4 shadow-sm border-0" style="border-radius: 14px;">
-    <form method="GET" action="{{ route('sekretaris.proposal-belum-selesai') }}" class="row g-2 align-items-center">
+    <form method="GET" action="{{ url()->current() }}" class="row g-2 align-items-center">
         <div class="col-md-6">
             <div class="input-group">
                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
@@ -39,7 +39,7 @@
                 <i class="bi bi-search me-1"></i> Cari
             </button>
             @if(request()->hasAny(['search', 'status_id']))
-                <a href="{{ route('sekretaris.proposal-belum-selesai') }}" class="btn btn-light btn-modern border">Reset</a>
+                <a href="{{ url()->current() }}" class="btn btn-light btn-modern border">Reset</a>
             @endif
         </div>
     </form>

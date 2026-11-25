@@ -87,7 +87,7 @@ class PenelitiController extends Controller
             $pathLamp = $kodeProposal . '/' . $fileName;
         }
 
-        PengajuanProposal::create([
+        $proposal = PengajuanProposal::create([
             'kode_proposal' => $kodeProposal,
             'peneliti_id' => $penelitiId,
             'judul_penelitian' => $request->judul_penelitian,
@@ -101,6 +101,14 @@ class PenelitiController extends Controller
             'file_kuesioner' => $pathKues,
             'file_lampiran' => $pathLamp,
         ]);
+
+        // Kirim Notifikasi WhatsApp Otomatis ke Peneliti
+        try {
+            $user = Auth::user()->load('profil');
+            app(\App\Services\WhatsAppService::class)->notifProposalBaru($user, $proposal);
+        } catch (\Throwable $e) {
+            // Lanjutkan eksekusi jika gateway belum aktif
+        }
 
         return redirect()->route('peneliti.status')->with('pesan_sukses', "Proposal berhasil diajukan dengan Kode: <b>$kodeProposal</b>!");
     }

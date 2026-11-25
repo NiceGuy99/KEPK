@@ -1,13 +1,19 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('title', 'Tinjauan Lembar Kerja Telaah')
 
 @section('content')
+@php
+    $isKetua = (auth()->check() && (auth()->user()->role_id == 2 || auth()->user()->role?->nama_role == 'ketua'));
+    $backUrl = $isKetua ? route('ketua.riwayat') : route('sekretaris.riwayat');
+    $form7Url = $isKetua ? route('ketua.detail-7standar', $tugas->id) : route('sekretaris.form7standar', $tugas->id);
+@endphp
+
 <div class="mb-4">
-    <a href="{{ route('sekretaris.riwayat') }}" class="text-decoration-none text-muted mb-2 d-inline-block">
+    <a href="{{ $backUrl }}" class="text-decoration-none text-muted mb-2 d-inline-block">
         <i class="bi bi-arrow-left me-1"></i> Kembali ke Riwayat Telaah
     </a>
-    <h3 class="fw-bold text-dark mb-1">Lembar Kerja Telaah Kelaikan Etik (Tinjauan Sekretaris)</h3>
+    <h3 class="fw-bold text-dark mb-1">Lembar Kerja Telaah Kelaikan Etik (Tinjauan {{ $isKetua ? 'Ketua' : 'Sekretaris' }})</h3>
     <p class="text-muted mb-0">Kode Proposal: <strong>{{ $proposal->kode_proposal ?? '-' }}</strong> | Penelaah: <strong>{{ $tugas->penelaah?->profil?->nama_lengkap ?? $tugas->penelaah?->email }}</strong></p>
 </div>
 
@@ -49,7 +55,7 @@
             </div>
 
             <!-- Tombol ke Form 7 Standar -->
-            <a href="{{ route('sekretaris.form7standar', $tugas->id) }}" class="btn btn-outline-primary btn-modern w-100 py-2">
+            <a href="{{ $form7Url }}" class="btn btn-outline-primary btn-modern w-100 py-2">
                 <i class="bi bi-list-check me-1"></i> Buka Formulir Daftar Tilik 7 Standar Etik (Tinjauan)
             </a>
         </div>

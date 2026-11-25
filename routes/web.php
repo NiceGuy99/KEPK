@@ -23,10 +23,13 @@ Route::middleware('auth')->group(function () {
     // SHARED: Cetak Sertifikat
     Route::get('/sertifikat/cetak/{id}', [SertifikatController::class, 'cetak'])->name('sertifikat.cetak');
 
-    // SHARED: Laporan (Sekretaris & Ketua)
+    // SHARED: Laporan & Pengaturan Sertifikat (Sekretaris & Ketua)
     Route::middleware('role:sekretaris,ketua')->group(function () {
         Route::get('/laporan', [LaporanController::class, 'index'])->name('laporan.index');
         Route::get('/laporan/cetak', [LaporanController::class, 'cetak'])->name('laporan.cetak');
+
+        Route::get('/pengaturan-sertifikat', [SekretarisController::class, 'pengaturanSertifikat'])->name('sekretaris.pengaturan-sertifikat');
+        Route::post('/pengaturan-sertifikat', [SekretarisController::class, 'updatePengaturanSertifikat'])->name('sekretaris.pengaturan-sertifikat.update');
     });
 
     // ==========================================
@@ -68,6 +71,13 @@ Route::middleware('auth')->group(function () {
         // Hak Akses & Menu Dinamis
         Route::get('/hak-akses', [SekretarisController::class, 'hakAkses'])->name('hak-akses');
         Route::post('/hak-akses', [SekretarisController::class, 'updateHakAkses'])->name('hak-akses.update');
+
+        // WhatsApp Gateway Monitoring & Template Management
+        Route::get('/whatsapp-gateway', [SekretarisController::class, 'waGateway'])->name('wa-gateway');
+        Route::post('/whatsapp-gateway/test', [SekretarisController::class, 'testKirimWa'])->name('wa-gateway.test');
+        Route::post('/whatsapp-gateway/template/{id}', [SekretarisController::class, 'waTemplateUpdate'])->name('wa-gateway.template.update');
+        Route::post('/whatsapp-gateway/template/{id}/toggle', [SekretarisController::class, 'waTemplateToggle'])->name('wa-gateway.template.toggle');
+        Route::post('/whatsapp-gateway/template', [SekretarisController::class, 'waTemplateStore'])->name('wa-gateway.template.store');
     });
 
     // ==========================================
@@ -80,6 +90,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/proposal-masuk', [KetuaController::class, 'proposalMasuk'])->name('proposal-masuk');
         Route::get('/verifikasi-berkas/{id}', [KetuaController::class, 'verifikasiBerkas'])->name('verifikasi');
+        Route::post('/verifikasi-berkas/{id}', [KetuaController::class, 'simpanVerifikasi'])->name('verifikasi.simpan');
 
         Route::get('/tugas-penelaahan', [KetuaController::class, 'tugasPenelaahan'])->name('tugas');
         Route::get('/riwayat-telaah', [KetuaController::class, 'riwayatTelaah'])->name('riwayat');
@@ -88,8 +99,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/daftar-sertifikat', [KetuaController::class, 'daftarSertifikat'])->name('sertifikat');
         Route::post('/sertifikat/simpan/{id}', [KetuaController::class, 'simpanSertifikat'])->name('sertifikat.simpan');
-        // Pastikan memanggil SekretarisController, BUKAN KetuaController
-        Route::get('/ketua/proposal-belum-selesai', [\App\Http\Controllers\SekretarisController::class, 'proposalBelumSelesai'])->name('ketua.proposal_belum_selesai');
+        Route::get('/proposal-belum-selesai', [KetuaController::class, 'proposalBelumSelesai'])->name('proposal_belum_selesai');
     });
 
 

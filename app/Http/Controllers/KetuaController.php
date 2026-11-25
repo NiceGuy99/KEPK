@@ -17,18 +17,36 @@ class KetuaController extends Controller
     {
         $stats = [
             'total_proposal' => PengajuanProposal::count(),
+            'menunggu_verifikasi' => PengajuanProposal::where('status_id', 1)->count(),
             'sedang_review' => PengajuanProposal::where('status_id', 2)->count(),
             'revisi' => PengajuanProposal::whereIn('status_id', [3, 4])->count(),
             'selesai' => PengajuanProposal::where('status_id', 5)->count(),
             'total_sertifikat' => Sertifikat::count(),
+            'total_user' => User::count(),
         ];
+
+        // Monthly statistics for current year
+        $currentYear = date('Y');
+        $monthlyCounts = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlyCounts[] = PengajuanProposal::where(function($q) use ($currentYear, $m) {
+                $q->where(function($sq) use ($currentYear, $m) {
+                    $sq->whereYear('tanggal_pengajuan', $currentYear)
+                       ->whereMonth('tanggal_pengajuan', $m);
+                })->orWhere(function($sq) use ($currentYear, $m) {
+                    $sq->whereNull('tanggal_pengajuan')
+                       ->whereYear('created_at', $currentYear)
+                       ->whereMonth('created_at', $m);
+                });
+            })->count();
+        }
 
         $proposals = PengajuanProposal::with(['peneliti.profil', 'jenisPenelitian', 'statusProposal', 'sertifikat'])
             ->orderBy('id', 'desc')
             ->limit(10)
             ->get();
 
-        return view('ketua.dashboard', compact('stats', 'proposals'));
+        return view('ketua.dashboard', compact('stats', 'proposals', 'monthlyCounts'));
     }
 
     public function listPeneliti()
@@ -60,7 +78,19 @@ class KetuaController extends Controller
             $query->where('status_id', $request->status_id);
         }
 
-        $proposals = $query->orderBy('id', 'desc')->paginate(15);
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('judul_penelitian', 'like', "%$search%")
+                  ->orWhere('kode_proposal', 'like', "%$search%")
+                  ->orWhereHas('peneliti.profil', function ($qp) use ($search) {
+                      $qp->where('nama_lengkap', 'like', "%$search%")
+                         ->orWhere('asal_kampus', 'like', "%$search%");
+                  });
+            });
+        }
+
+        $proposals = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
         $masterStatus = MasterStatusProposal::all();
 
         return view('ketua.proposal_masuk', compact('proposals', 'masterStatus'));
@@ -80,8 +110,12 @@ class KetuaController extends Controller
         $masterPersetujuan = MasterJenisPersetujuan::all();
         $statusTerkunci = in_array($proposal->status_id, [3, 5]);
 
-        // Ubah 'ketua.verifikasi' menjadi 'sekretaris.verifikasi'
         return view('sekretaris.verifikasi', compact('proposal', 'masterStatus', 'masterPersetujuan', 'statusTerkunci'));
+    }
+
+    public function simpanVerifikasi(Request $request, $id)
+    {
+        return app(SekretarisController::class)->simpanVerifikasi($request, $id);
     }
 
     public function tugasPenelaahan()
@@ -134,6 +168,18 @@ class KetuaController extends Controller
         $proposal->status = 'selesai';
         $proposal->save();
 
+        // Notifikasi WA Otomatis ke Peneliti
+        try {
+            $proposal->load('peneliti.profil');
+            if ($proposal->peneliti) {
+                app(\App\Services\WhatsAppService::class)->notifSertifikatTerbit(
+                    $proposal->peneliti,
+                    $proposal,
+                    $request->nomor_sertifikat
+                );
+            }
+        } catch (\Throwable $e) {}
+
         return redirect()->route('sertifikat.cetak', $proposal->id)->with('pesan_sukses', 'Sertifikat kelaikan etik berhasil diterbitkan!');
     }
 
@@ -179,6 +225,11 @@ class KetuaController extends Controller
 
         // Kita gunakan view milik sekretaris agar tidak perlu membuat file view terpisah
         return view('sekretaris.proposal_belum_selesai', compact('proposals', 'masterStatus'));
+    }
+
+    public function detailTelaahSekretaris($id)
+    {
+        return app(\App\Http\Controllers\SekretarisController::class)->detailTelaahSekretaris($id);
     }
 }
 

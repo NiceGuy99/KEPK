@@ -1,4 +1,4 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('title', 'Verifikasi Berkas Proposal')
 
@@ -104,7 +104,12 @@
                 </div>
             @endif
 
-            <form action="{{ route('sekretaris.verifikasi.simpan', $proposal->id) }}" method="POST">
+            @php
+                $actionRoute = (auth()->check() && (auth()->user()->role_id == 2 || auth()->user()->role?->nama_role == 'ketua'))
+                    ? route('ketua.verifikasi.simpan', $proposal->id)
+                    : route('sekretaris.verifikasi.simpan', $proposal->id);
+            @endphp
+            <form action="{{ $actionRoute }}" method="POST">
                 @csrf
 
                 <div class="mb-3">

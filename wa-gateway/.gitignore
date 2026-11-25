@@ -1,0 +1,12 @@
+# WhatsApp Gateway Sessions, Auth & Dependencies
+node_modules/
+auth_info/
+session_auth/
+sessions/
+.wwebjs_*
+.env
+.env.*
+*.log
+*.png
+*.jpg
+*.jpeg

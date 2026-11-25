@@ -19,15 +19,19 @@
 
 <div class="mb-4 d-flex justify-content-between align-items-center">
     <div>
+        @php
+            $isKetua = (auth()->check() && (auth()->user()->role_id == 2 || auth()->user()->role?->nama_role == 'ketua'));
+            $detailTelaahRoute = $isKetua ? route('ketua.detail-telaah', $penugasan->id) : route('sekretaris.detail-telaah', $penugasan->id);
+        @endphp
         {{-- Tombol kembali dinamis: Kembali ke lembar telaah atau riwayat/detail tergantung mode --}}
         @if($isViewMode)
-            <a href="{{ route('sekretaris.detail-telaah', $penugasan->id) }}" class="text-decoration-none text-muted mb-2 d-inline-block"><i class="bi bi-arrow-left me-1"></i> Kembali ke Detail Telaah</a>
+            <a href="{{ $detailTelaahRoute }}" class="text-decoration-none text-muted mb-2 d-inline-block"><i class="bi bi-arrow-left me-1"></i> Kembali ke Detail Telaah</a>
         @else
             <a href="{{ route('sekretaris.telaah', $penugasan->id) }}" class="text-decoration-none text-muted mb-2 d-inline-block"><i class="bi bi-arrow-left me-1"></i> Kembali ke Lembar Telaah</a>
         @endif
         
         <h3 class="fw-bold text-dark mb-1">Self Assessment: 7 Standar Kelaikan Etik</h3>
-        <p class="text-muted mb-0">Proposal: <strong>{{ $penugasan->proposal->judul_penelitian }}</strong></p>
+        <p class="text-muted mb-0">Proposal: <strong>{{ $penugasan->proposal?->judul_penelitian ?? '-' }}</strong></p>
     </div>
     
     <div>

@@ -1,26 +1,111 @@
-*.log
-.DS_Store
+# ==========================================
+# 1. Environment & Credentials & Secrets
+# ==========================================
 .env
-.env.backup
-.env.production
-.phpactor.json
-.phpunit.result.cache
+.env.*
+!.env.example
+auth.json
+*.key
+*.pem
+*.crt
+*.cert
+*.pfx
+*.p12
+*.pub
+id_rsa*
+id_ed25519*
+credentials*.json
+client_secret*.json
+service-account*.json
+oauth-*.key
+token*.json
+
+# ==========================================
+# 2. WhatsApp Gateway (Auth, Session & Nodes)
+# ==========================================
+/wa-gateway/node_modules/
+/wa-gateway/auth_info/
+/wa-gateway/session_auth/
+/wa-gateway/sessions/
+/wa-gateway/.wwebjs_*
+/wa-gateway/.env*
+/wa-gateway/*.log
+/wa-gateway/*.png
+/wa-gateway/*.jpg
+/wa-gateway/*.jpeg
+*auth_info*
+*session_auth*
+*.session
+*.wwebjs_auth
+*.wwebjs_cache
+
+# ==========================================
+# 3. Dependencies & Package Builds
+# ==========================================
+/node_modules
+/vendor
+/public/build
+/public/hot
+/public/storage
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# 4. Storage, Uploads, Cache, Sessions & Logs
+# ==========================================
+/storage/*.key
+/storage/pail
+/storage/logs/*.log
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/app/public/*
+!/storage/app/public/.gitignore
+/storage/app/*
+!/storage/app/.gitignore
+!/storage/app/public/
+*.log
+
+# ==========================================
+# 5. Database & Local Dumps
+# ==========================================
+*.sqlite
+*.sqlite-journal
+*.db
+*.sql
+*.sql.gz
+*.bak
+*.dump
+
+# ==========================================
+# 6. Local Notes & Manual Test Scripts
+# ==========================================
+ETHOS.txt
+New Text Document.txt
+test_*.php
+*.tmp
+*.bak
+*.swp
+*~
+
+# ==========================================
+# 7. IDE, Editors & OS Files
+# ==========================================
+.DS_Store
+Thumbs.db
+desktop.ini
 /.fleet
 /.idea
 /.nova
 /.phpunit.cache
+/.phpunit.result.cache
 /.vscode
 /.zed
-/auth.json
-/node_modules
-/public/build
-/public/hot
-/public/storage
-/storage/*.key
-/storage/pail
-/vendor
+.phpactor.json
 Homestead.json
 Homestead.yaml
-Thumbs.db
-# Abaikan file testing manual
-test_*.php

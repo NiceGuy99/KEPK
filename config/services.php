@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'wa_gateway' => [
+        'url' => env('WA_GATEWAY_URL', 'http://127.0.0.1:8088'),
+        'enabled' => env('WA_ENABLED', true),
+    ],
+
 ];

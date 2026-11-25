@@ -13,6 +13,8 @@ use App\Models\PenugasanReview;
 use App\Models\ProfilPengguna;
 use App\Models\Sertifikat;
 use App\Models\User;
+use App\Models\WaTemplate;
+use App\Models\PengaturanSertifikat;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
@@ -30,12 +32,28 @@ class SekretarisController extends Controller
             'total_user' => User::count(),
         ];
 
+        // Monthly statistics for current year
+        $currentYear = date('Y');
+        $monthlyCounts = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlyCounts[] = PengajuanProposal::where(function($q) use ($currentYear, $m) {
+                $q->where(function($sq) use ($currentYear, $m) {
+                    $sq->whereYear('tanggal_pengajuan', $currentYear)
+                       ->whereMonth('tanggal_pengajuan', $m);
+                })->orWhere(function($sq) use ($currentYear, $m) {
+                    $sq->whereNull('tanggal_pengajuan')
+                       ->whereYear('created_at', $currentYear)
+                       ->whereMonth('created_at', $m);
+                });
+            })->count();
+        }
+
         $proposals = PengajuanProposal::with(['peneliti.profil', 'jenisPenelitian', 'statusProposal'])
             ->orderBy('id', 'desc')
             ->limit(10)
             ->get();
 
-        return view('sekretaris.dashboard', compact('stats', 'proposals'));
+        return view('sekretaris.dashboard', compact('stats', 'proposals', 'monthlyCounts'));
     }
 
     public function dataPengguna(Request $request)
@@ -79,6 +97,8 @@ class SekretarisController extends Controller
             'is_active' => 'required|boolean',
         ]);
 
+        $plainPassword = $request->password;
+
         $user = User::create([
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -86,7 +106,7 @@ class SekretarisController extends Controller
             'is_active' => $request->is_active ? 1 : 0,
         ]);
 
-        ProfilPengguna::create([
+        $profil = ProfilPengguna::create([
             'user_id' => $user->id,
             'nama_lengkap' => $request->nama_lengkap,
             'nik' => $request->nik,
@@ -97,7 +117,21 @@ class SekretarisController extends Controller
             'alamat' => $request->alamat,
         ]);
 
-        return back()->with('pesan_sukses', 'Pengguna baru berhasil ditambahkan!');
+        // Otomatis kirim kredensial akun via WhatsApp jika nomor telepon diisi dan opsi aktif
+        $waNotice = '';
+        if (!empty($request->nomor_telepon) && $request->input('kirim_wa', 1)) {
+            try {
+                $user->load('role');
+                $waResult = app(\App\Services\WhatsAppService::class)->notifAkunPenggunaBaru($user, $profil, $plainPassword);
+                if (!empty($waResult['success'])) {
+                    $waNotice = ' & kredensial akun telah otomatis dikirimkan via WhatsApp ke ' . $request->nomor_telepon;
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('[WA Gateway] Gagal kirim notif akun baru: ' . $e->getMessage());
+            }
+        }
+
+        return back()->with('pesan_sukses', 'Pengguna baru berhasil ditambahkan' . $waNotice . '!');
     }
 
     public function updatePengguna(Request $request, $id)
@@ -196,7 +230,19 @@ class SekretarisController extends Controller
             $query->where('status_id', $request->status_id);
         }
 
-        $proposals = $query->orderBy('id', 'desc')->paginate(15);
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('judul_penelitian', 'like', "%$search%")
+                  ->orWhere('kode_proposal', 'like', "%$search%")
+                  ->orWhereHas('peneliti.profil', function ($qp) use ($search) {
+                      $qp->where('nama_lengkap', 'like', "%$search%")
+                         ->orWhere('asal_kampus', 'like', "%$search%");
+                  });
+            });
+        }
+
+        $proposals = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
         $masterStatus = MasterStatusProposal::all();
 
         $calonPenelaah = User::with(['profil', 'role'])
@@ -245,7 +291,26 @@ class SekretarisController extends Controller
 
         $proposal->save();
 
-        return redirect()->route('sekretaris.proposal-masuk')->with('pesan_sukses', 'Keputusan verifikasi berhasil disimpan!');
+        // Kirim Notifikasi WhatsApp Otomatis ke Peneliti
+        try {
+            $proposal->load('peneliti.profil');
+            $isLolos = in_array((int)$proposal->status_id, [2, 5]);
+            $isRevisi = ((int)$proposal->status_id === 3);
+            if (($isLolos || $isRevisi) && $proposal->peneliti) {
+                app(\App\Services\WhatsAppService::class)->notifVerifikasi(
+                    $proposal->peneliti, 
+                    $proposal, 
+                    $isLolos, 
+                    $proposal->catatan_verifikasi
+                );
+            }
+        } catch (\Throwable $e) {}
+
+        $redirectRoute = (auth()->check() && (auth()->user()->role_id == 2 || auth()->user()->role?->nama_role == 'ketua'))
+            ? 'ketua.proposal-masuk'
+            : 'sekretaris.proposal-masuk';
+
+        return redirect()->route($redirectRoute)->with('pesan_sukses', 'Keputusan verifikasi berhasil disimpan!');
     }
 
     public function tugasPenelaahan()
@@ -294,12 +359,21 @@ class SekretarisController extends Controller
             }
         }
 
-        $proposal = PengajuanProposal::find($request->proposal_id);
+        $proposal = PengajuanProposal::with('peneliti.profil')->find($request->proposal_id);
         if ($proposal && $proposal->status_id == 1) {
             $proposal->status_id = 2;
             $proposal->status = 'sedang_direview'; 
             $proposal->save();
         }
+
+        // Kirim Notifikasi WhatsApp Otomatis ke Setiap Penelaah yang Ditugaskan
+        try {
+            $waService = app(\App\Services\WhatsAppService::class);
+            $penelaahs = User::with('profil')->whereIn('id', $request->penelaah_ids)->get();
+            foreach ($penelaahs as $penelaah) {
+                $waService->notifPenugasanReviewer($penelaah, $proposal);
+            }
+        } catch (\Throwable $e) {}
 
         return back()->with('pesan_sukses', 'Proposal berhasil diterima dan penelaah telah ditugaskan!');
     }
@@ -360,7 +434,7 @@ class SekretarisController extends Controller
     // Fungsi saat membuka dari Detail Telaah (View Only Mode)
     public function detail7StandarSekretaris($id)
     {
-        $penugasan = PenugasanReview::findOrFail($id);
+        $penugasan = PenugasanReview::with(['proposal.peneliti.profil', 'proposal.jenisPenelitian', 'penelaah.profil'])->findOrFail($id);
         $savedAnswers = HasilSelfAssessmentPenelaah::where('proposal_id', $penugasan->proposal_id)->where('penelaah_id', $penugasan->penelaah_id)->pluck('pilihan', 'indikator_key')->toArray();
         
         $isSelesai = true; // Paksa terkunci
@@ -501,12 +575,27 @@ class SekretarisController extends Controller
         return view('sekretaris.detail_hasil_telaah', compact('proposal', 'penelaah', 'penugasan', 'savedAnswers'));
     }
 
-    public function daftarSertifikat()
+    public function daftarSertifikat(Request $request)
     {
-        $proposalsSelesai = PengajuanProposal::with(['peneliti.profil', 'jenisPenelitian', 'sertifikat'])
-            ->where('status_id', 5)
-            ->orderBy('id', 'desc')
-            ->paginate(15);
+        $query = PengajuanProposal::with(['peneliti.profil', 'jenisPenelitian', 'sertifikat'])
+            ->where('status_id', 5);
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('judul_penelitian', 'like', "%$search%")
+                  ->orWhere('kode_proposal', 'like', "%$search%")
+                  ->orWhereHas('peneliti.profil', function ($qp) use ($search) {
+                      $qp->where('nama_lengkap', 'like', "%$search%")
+                         ->orWhere('asal_kampus', 'like', "%$search%");
+                  })
+                  ->orWhereHas('sertifikat', function ($qs) use ($search) {
+                      $qs->where('nomor_sertifikat', 'like', "%$search%");
+                  });
+            });
+        }
+
+        $proposalsSelesai = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
 
         return view('sekretaris.daftar_sertifikat', compact('proposalsSelesai'));
     }
@@ -549,6 +638,18 @@ class SekretarisController extends Controller
         // 5. Update nomor sertifikat final ke database
         $sertifikat->nomor_sertifikat = $nomorSertifikatFinal;
         $sertifikat->save();
+
+        // Notifikasi WA Otomatis ke Peneliti
+        try {
+            $prop = PengajuanProposal::with('peneliti.profil')->find($id);
+            if ($prop && $prop->peneliti) {
+                app(\App\Services\WhatsAppService::class)->notifSertifikatTerbit(
+                    $prop->peneliti,
+                    $prop,
+                    $nomorSertifikatFinal
+                );
+            }
+        } catch (\Throwable $e) {}
 
         return redirect()->route('sertifikat.cetak', $id)->with('pesan_sukses', 'Sertifikat berhasil diterbitkan!');
     }
@@ -638,5 +739,135 @@ class SekretarisController extends Controller
         }
 
         return back()->with('pesan_sukses', 'Matriks Hak Akses berhasil diperbarui untuk semua Role!');
+    }
+
+    // Monitoring & Pengaturan WhatsApp Gateway
+    public function waGateway()
+    {
+        $waService = app(\App\Services\WhatsAppService::class);
+        $status = $waService->getStatus();
+        $gatewayUrl = config('services.wa_gateway.url', 'http://127.0.0.1:8088');
+        $templates = WaTemplate::orderBy('id', 'asc')->get();
+
+        return view('sekretaris.wa_gateway', compact('status', 'gatewayUrl', 'templates'));
+    }
+
+    // Uji Kirim Pesan WhatsApp
+    public function testKirimWa(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|string',
+            'message' => 'required|string',
+        ]);
+
+        $waService = app(\App\Services\WhatsAppService::class);
+        $result = $waService->send($request->phone, $request->message);
+
+        if ($result['success']) {
+            return back()->with('pesan_sukses', 'Uji coba pesan WhatsApp berhasil terkirim!');
+        }
+
+        return back()->with('pesan_error', 'Gagal kirim pesan: ' . ($result['message'] ?? 'Error tidak diketahui'));
+    }
+
+    // Simpan Perubahan Template Pesan
+    public function waTemplateUpdate(Request $request, $id)
+    {
+        $request->validate([
+            'nama_pemicu' => 'required|string|max:100',
+            'target_role' => 'required|string|max:50',
+            'template_pesan' => 'required|string',
+            'deskripsi' => 'nullable|string|max:255',
+        ]);
+
+        $tpl = WaTemplate::findOrFail($id);
+        $tpl->nama_pemicu = $request->nama_pemicu;
+        $tpl->target_role = $request->target_role;
+        $tpl->template_pesan = $request->template_pesan;
+        $tpl->deskripsi = $request->deskripsi;
+        if ($request->has('is_active')) {
+            $tpl->is_active = (bool) $request->is_active;
+        }
+        $tpl->save();
+
+        return back()->with('pesan_sukses', "Template '{$tpl->nama_pemicu}' berhasil diperbarui!");
+    }
+
+    // Toggle Aktif / Nonaktif Template Pesan
+    public function waTemplateToggle(Request $request, $id)
+    {
+        $tpl = WaTemplate::findOrFail($id);
+        $tpl->is_active = !$tpl->is_active;
+        $tpl->save();
+
+        $statusText = $tpl->is_active ? 'diaktifkan' : 'dinonaktifkan';
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'is_active' => $tpl->is_active,
+                'message' => "Notifikasi '{$tpl->nama_pemicu}' berhasil {$statusText}."
+            ]);
+        }
+
+        return back()->with('pesan_sukses', "Notifikasi '{$tpl->nama_pemicu}' berhasil {$statusText}!");
+    }
+
+    // Tambah Pemicu Baru
+    public function waTemplateStore(Request $request)
+    {
+        $request->validate([
+            'nama_pemicu' => 'required|string|max:100',
+            'slug' => 'required|string|max:50|unique:wa_templates,slug',
+            'target_role' => 'required|string|max:50',
+            'template_pesan' => 'required|string',
+            'deskripsi' => 'nullable|string|max:255',
+            'variabel_tersedia' => 'nullable|string|max:255',
+        ]);
+
+        WaTemplate::create([
+            'nama_pemicu' => $request->nama_pemicu,
+            'slug' => \Illuminate\Support\Str::slug($request->slug, '_'),
+            'target_role' => $request->target_role,
+            'template_pesan' => $request->template_pesan,
+            'deskripsi' => $request->deskripsi,
+            'variabel_tersedia' => $request->variabel_tersedia ?: '{nama_lengkap}, {judul_penelitian}, {kode_proposal}, {tgl}',
+            'is_active' => true,
+        ]);
+
+        return back()->with('pesan_sukses', "Pemicu notifikasi baru '{$request->nama_pemicu}' berhasil ditambahkan!");
+    }
+
+    // Tampilkan Form Pengaturan Format & Penandatangan Sertifikat
+    public function pengaturanSertifikat()
+    {
+        $pengaturan = PengaturanSertifikat::getActive();
+        return view('sekretaris.pengaturan_sertifikat', compact('pengaturan'));
+    }
+
+    // Simpan Perubahan Pengaturan Sertifikat
+    public function updatePengaturanSertifikat(Request $request)
+    {
+        $validated = $request->validate([
+            'nama_penandatangan' => 'required|string|max:255',
+            'jabatan_penandatangan' => 'required|string|max:255',
+            'pangkat_golongan' => 'nullable|string|max:255',
+            'nip_penandatangan' => 'nullable|string|max:100',
+            'kota_penerbitan' => 'required|string|max:100',
+            'nama_lembaga' => 'required|string|max:255',
+            'nama_lembaga_en' => 'nullable|string|max:255',
+            'nama_instansi' => 'required|string|max:255',
+            'masa_berlaku_teks' => 'required|string|max:255',
+            'masa_berlaku_teks_en' => 'nullable|string|max:255',
+        ]);
+
+        $pengaturan = PengaturanSertifikat::first();
+        if ($pengaturan) {
+            $pengaturan->update($validated);
+        } else {
+            $pengaturan = PengaturanSertifikat::create(array_merge($validated, ['is_active' => true]));
+        }
+
+        return back()->with('pesan_sukses', 'Pengaturan penandatangan dan format sertifikat berhasil disimpan!');
     }
 }
